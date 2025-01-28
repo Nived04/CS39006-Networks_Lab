@@ -3,7 +3,7 @@
 Assignment 2 Submission
 Name: Nived Roshan Shah
 Roll Number: 22CS10049
-Link of the pcap file: 
+Link of the pcap file: https://drive.google.com/file/d/1UcutDG05RUnmxUFM2l2d-xojYI_MvOy_/view?usp=sharing
 
 */
 
@@ -43,6 +43,8 @@ int main() {
 
     // 127.0.0.1 is called the loopback address (the local machine address)
     server_address.sin_addr.s_addr = inet_addr("127.0.0.1"); 
+    // htons changes the order of storing the number (little-endian to big-endian: i.e most significant bits first)
+    // has no effect if the machine is already big-endian
     server_address.sin_port = htons(PORT); 
     server_address.sin_family = AF_INET; 
       
@@ -79,6 +81,8 @@ int main() {
     }
     buffer[msg_size] = '\0';
 
+    printf("\nMessage Received: %s\nTranslates to: ", buffer);
+
     if(strcmp(buffer, not_found_error) == 0) {
         printf("FILE NOT FOUND\n");
     }
@@ -86,7 +90,7 @@ int main() {
         FILE* fp = fopen("response.txt", "w");
         fprintf(fp, "%s\n", buffer);
 
-        printf("\nRequest acknowledged, proceeding to retrieve file contents...\n\n");
+        printf("Request acknowledged, proceeding to retrieve file contents...\n\n");
 
         int i = 1;
         while(1) {
@@ -101,6 +105,7 @@ int main() {
 
             // not handling other cases assuming FINISH will always exist in the file
             if(strcmp(buffer, "FINISH") == 0) {
+                printf("\n%s received, completing file content retrieval\n", buffer);
                 break;
             }
 
