@@ -24,7 +24,7 @@ char* to_upper(char* str) {
 }
 
 void send_message(int client_sockfd, char* message) {
-    int message_size = strlen(message);
+    int message_size = strlen(message) + 1;
     while(message_size > BUFFER) {
         send(client_sockfd, message, BUFFER, 0);
         message_size -= BUFFER;
@@ -32,9 +32,6 @@ void send_message(int client_sockfd, char* message) {
     }
     if(message_size > 0) {
         send(client_sockfd, message, message_size, 0);
-    }
-    else {
-        send(client_sockfd, "%%", 2, 0);
     }
 }
 

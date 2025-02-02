@@ -10,14 +10,15 @@
 #define PORT 5050
 #define MAX_BUFF 100
 
-void encrypt(char* file_name, char* enc_file_name, char* key) {
+void encrypt(char* file_name, char* enc_file_name, char* key, int total_size) {
     FILE *fp = fopen(file_name, "r");
     FILE *fenc = fopen(enc_file_name, "w");
 
     char* file_content = (char*)malloc(1000*sizeof(char));
     char c, temp; 
-
-    while(fscanf(fp, "%c", &c) != '\0') {
+    int i=0;
+    while(i<total_size) {
+        c = fgetc(fp);
         if(c >= 'a' && c <= 'z') {
             temp = key[c - 'a'];
             if(temp >= 'A' && temp <= 'Z') {
@@ -36,9 +37,11 @@ void encrypt(char* file_name, char* enc_file_name, char* key) {
         }
         c = temp;
         fputc(c, fenc);
+        i++;
     }
 
     fclose(fp);
+    fclose(fenc);
 }
 
 void send_message(int client_sockfd, char* message) {
@@ -121,13 +124,16 @@ int main() {
             sprintf(plain_file_name, "%s.%d.txt", client_ip, client_port);
             sprintf(enc_file_name, "%s.enc", plain_file_name);
 
+            int total_size = 0;
+
             while(1) {
                 FILE* fp = fopen(plain_file_name, "w");
-
+                int flag = 0;
                 int i=0;
                 while(1) {
                     int num_received = recv(comm_sockfd, buf, MAX_BUFF, 0);
-                    
+                    printf("** %s \n", buf);
+
                     int j=0;
 
                     if(!key_received) {
@@ -139,13 +145,19 @@ int main() {
                         if(buf[j] == '\0') {
                             key_received = 1;
                             key[i] = '\0';
+                            j++;
                         }
                         else {
                             continue;
                         }
                     }
 
+                    printf("%s\n", key);
                     num_received-=j;
+
+                    total_size += num_received;
+
+                    printf("\n%d\n", num_received);
 
                     while(num_received > 0 && buf[j] != '\0') {
                         fputc(buf[j], fp);
@@ -154,17 +166,21 @@ int main() {
                     }
 
                     if(buf[j] == '\0') {
-                        fputc('\0', fp);
+                        flag = 1;
                         break;
                     }
                 }
 
                 fclose(fp);
+                if(flag) break;
             }
 
-            encrypt(plain_file_name, enc_file_name, key);
+            printf("\n%d\n", total_size);
+
+            encrypt(plain_file_name, enc_file_name, key, total_size);
 
             printf("FILE ENCRYPTED\n");
+            break;
         }
         
     }
