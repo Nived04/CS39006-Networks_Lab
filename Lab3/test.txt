@@ -1,5 +1,4 @@
-THIS
-is
-a
-test
-MESSAGE
+HELLO
+ABC
+CSE
+IIT KHARAGPUR
