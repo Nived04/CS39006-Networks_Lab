@@ -1,60 +1,35 @@
 /*
-
 			NETWORK PROGRAMMING WITH SOCKETS
-
-
-
 In this program we illustrate the use of Berkeley sockets for interprocess
-
 communication across the network. We show the communication between a server
-
 process and a client process.
-
-
-
-
 
 */
 
 #include <stdio.h>
-
 #include <stdlib.h>
-
 #include <unistd.h>
-
 #include <string.h>
-
 #include <sys/types.h>
-
 #include <sys/socket.h>
-
 #include <netinet/in.h>
-
 #include <arpa/inet.h>
 
 /* THE SERVER PROCESS */
 
 int main()
-
 {
-
 	int sockfd, newsockfd; /* Socket descriptors */
 	int clilen;
 	struct sockaddr_in cli_addr, serv_addr;
 	int i;
 
 	char buf[100]; /* We will use this buffer for communication */
-
 	/* The following system call opens a socket. The first parameter
-
 	   indicates the family of the protocol to be followed. For internet
-
 	   protocols we use AF_INET. For TCP sockets the second parameter
-
 	   is SOCK_STREAM. The third parameter is set to 0 for user
-
 	   applications.
-
 	*/
 
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)	{
@@ -101,44 +76,28 @@ int main()
 
 	while (1)
 	{
-
 		/* The accept() system call accepts a client connection.
-
 		   It blocks the server until a client request comes.
-
-
-
 		   The accept() system call fills up the client's details
-
 		   in a struct sockaddr which is passed as a parameter.
-
 		   The length of the structure is noted in clilen. Note
-
 		   that the new socket descriptor returned by the accept()
-
 		   system call is stored in "newsockfd".
-
 		*/
 
 		clilen = sizeof(cli_addr);
-
 		newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
 
 		if (newsockfd < 0) {
-
 			perror("Accept error\n");
-
 			exit(0);
 		}
 
 		/* We initialize the buffer, copy the message to it,
-
 			and send the message to the client.
-
 		*/
 
 		strcpy(buf, "Message from server");
-
 		send(newsockfd, buf, strlen(buf) + 1, 0);
 
 		/* 
@@ -154,9 +113,7 @@ int main()
 		*/
 
 		recv(newsockfd, buf, 100, 0);
-
 		printf("%s\n", buf);
-
 		close(newsockfd);
 	}
 
