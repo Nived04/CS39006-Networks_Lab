@@ -15,7 +15,7 @@ Assumptions: server is always on (not abruptly closed, eg. using ctrl+C), same f
 #include <sys/select.h>
 
 #define STDIN 0
-#define PORT 5051
+#define PORT 5051 
 
 int main() {
     fd_set fds;

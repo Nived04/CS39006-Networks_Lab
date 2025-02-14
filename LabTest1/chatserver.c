@@ -80,7 +80,7 @@ int main() {
                 if((num_bytes = recv(clientsockfd[i], buff, 1000, 0)) < 0) { // mistake during lab test: forget brackets around num_bytes
                     printf("Receive error for %s: %d\n", client_ips[i], client_ports[i]);
                     continue;
-                }
+                } 
 
                 if (num_bytes == 0) {
                     printf("Server: Client %s: %d disconnected at socket %d\n", client_ips[i], client_ports[i], clientsockfd[i]);
