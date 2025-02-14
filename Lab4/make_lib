@@ -1,0 +1,19 @@
+CC = gcc
+AR = ar
+CFLAGS = -Wall -O2 -fPIC
+LDFLAGS = -lpthread
+
+LIBNAME = libksocket.a
+SRCS = ksocket.c
+OBJS = $(SRCS:.c=.o)
+
+all: $(LIBNAME)
+
+$(LIBNAME): $(OBJS)
+	$(AR) rcs $@ $(OBJS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJS) $(LIBNAME)

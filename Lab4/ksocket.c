@@ -1,9 +1,4 @@
 #include "ksocket.h"
-#include <sys/shm.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 
 #define SOCKET_NUMBER 10
 #define WINDOW_SIZE 10
@@ -11,24 +6,7 @@
 #define KEY_STRING "/"
 #define VAL 65
 
-typedef struct {
-    int window_size;
-    int not_acked[WINDOW_SIZE];
-}window;
-
-typedef struct {
-    bool isAlloted;
-    int pid;
-    int udp_sockfd;
-    int peer_port;
-    char peer_ip[16];
-    char send_buffer[10][MESSAGE_SIZE];
-    char receive_buffer[10][MESSAGE_SIZE];
-    int send_buffer_count;
-    int receive_buffer_count;
-    window swnd;
-    window rwnd;
-}socket_shm;
+int error_var = 0;
 
 socket_shm* attach_socket_shm() {
     key_t key = ftok(KEY_STRING, VAL);
@@ -59,6 +37,11 @@ int get_socket_num(int comparator, socket_shm* M, int sockfd) {
     return -1;
 } 
 
+int dropMessage(float p) {
+    float random = (float)rand() / RAND_MAX;
+    return (random < p) ? 1 : 0;
+}
+
 int k_socket(int domain, int type, int protocol) {
     if(type != SOCK_KTP) {
         // throw error saying that this function only allows sock_ktp type
@@ -74,9 +57,12 @@ int k_socket(int domain, int type, int protocol) {
         return -1;
     }
 
+    pthread_mutex_lock(&M[curr].lock);
+
     int sockfd = socket(domain, SOCK_DGRAM, protocol);
     if(sockfd == -1) {
         // error in socket creation
+        pthread_mutex_unlock(&M[curr].lock);
         shmdt(M);
         return -1;
     }
@@ -89,6 +75,7 @@ int k_socket(int domain, int type, int protocol) {
     M[curr].swnd.window_size = WINDOW_SIZE;
     M[curr].rwnd.window_size = WINDOW_SIZE;
 
+    pthread_mutex_unlock(&M[curr].lock);
     shmdt(M);
     return sockfd;
 }
@@ -103,6 +90,8 @@ int k_bind(int sockfd, char* source_ip, int source_port, char* dest_ip, int dest
         return -1;
     }
 
+    pthread_mutex_lock(&M[curr].lock);
+
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -115,6 +104,7 @@ int k_bind(int sockfd, char* source_ip, int source_port, char* dest_ip, int dest
         M[curr].peer_port = dest_port;
     }
 
+    pthread_mutex_unlock(&M[curr].lock);
     shmdt(M);
     return result;
 }
@@ -129,17 +119,21 @@ ssize_t k_sendto(int sockfd, const void *buf, size_t len, int flags, const struc
         return -1;
     }
 
+    pthread_mutex_lock(&M[curr].lock);
+
     struct sockaddr_in* dest = (struct sockaddr_in*)dest_addr;
     char *dest_ip = inet_ntoa(dest->sin_addr);
     int dest_port = ntohs(dest->sin_port); 
 
     if((strcmp(M[curr].peer_ip, dest_ip) != 0) || (M[curr].peer_port != dest_port)) {
-        error_var = ENOTBOUND;
+        pthread_mutex_unlock(&M[curr].lock);
         shmdt(M);
+        error_var = ENOTBOUND;
         return -1;
     }
 
     if(M[curr].send_buffer_count >= WINDOW_SIZE) {
+        pthread_mutex_unlock(&M[curr].lock);
         shmdt(M);
         error_var = ENOSPACE;
         return -1;
@@ -148,7 +142,8 @@ ssize_t k_sendto(int sockfd, const void *buf, size_t len, int flags, const struc
     memcpy(M[curr].send_buffer[M[curr].send_buffer_count], buf, len);
     M[curr].send_buffer_count++;
 
-    shmdt(M);
+    pthread_mutex_unlock(&M[curr].lock);
+    shmdt(M);   
     return len;
 }
 
@@ -162,8 +157,10 @@ ssize_t k_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr
         return -1;
     }
 
+    pthread_mutex_lock(&M[curr].lock);
+
     if (M[curr].receive_buffer_count == 0) {
-        // pthread_mutex_unlock(&M[curr].lock);
+        pthread_mutex_unlock(&M[curr].lock);
         shmdt(M);
         error_var = ENOMESSAGE;
         return -1;
@@ -187,7 +184,7 @@ ssize_t k_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr
         *addrlen = sizeof(struct sockaddr_in);
     }
 
-    // pthread_mutex_unlock(&M[curr].lock);
+    pthread_mutex_unlock(&M[curr].lock);
     shmdt(M);
     return copy_len;
 }
@@ -202,7 +199,7 @@ int k_close(int sockfd) {
         return -1;
     }
 
-    // pthread_mutex_lock(&M[curr].lock);
+    pthread_mutex_lock(&M[curr].lock);
 
     // Close UDP socket
     close(sockfd);
@@ -214,7 +211,7 @@ int k_close(int sockfd) {
     M[curr].send_buffer_count = 0;
     M[curr].receive_buffer_count = 0;
 
-    // pthread_mutex_unlock(&M[curr].lock);
+    pthread_mutex_unlock(&M[curr].lock);
     shmdt(M);
     return 0;
 }
