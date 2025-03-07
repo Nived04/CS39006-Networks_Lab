@@ -1,28 +1,39 @@
-### Select():
-Multiplexes between multiple file descriptors
-select(nfds - no of file descriptors, rdfd, writefd, exptfd, timeout)
-- Timeout 0 means infinite waiting (or until a fd becomes active)
-- Timeout works like a counter. eg. if a fd becomes active at 5 sec, but timeout was 12 sec, the value of timeout will become 7 sec
- 
-### fd_set structure:
-Creates a bit map.
- _ _ _ _ _ 
-|_|_|_|_|_| - initially all 0
+## Different types of flags:
 
-### FD_SET(fd, fd_set)
+MSG_WAITALL: 
+```
+    char buff[1024];
+    recv(sock, buff, sizeof(buff), MSG_WAITALL);
+    // This will wait until the buffer is full of 1024 bytes
+```
 
-### FD_ISSET(fd)
+But use of this flag is not recommended as it can lead to deadlock/infinite blocking.
 
-fd_set readfds;
-FD_ZERO(readfds);
-FD_SET(sockfd, readfds);
-FD_SET(stdin, readfds);
+MSG_DONTWAIT:
+```
+    char buff[1024];
+    recv(sock, buff, sizeof(buff), MSG_DONTWAIT);
+    // This will return immediately if there is no data to read
+```
 
-select(sockfd+1, readfds, NULL, NULL, timeout);
+error_code : EWOULDBLOCK || EAGAIN
 
-if(FD_ISSET(sockfd)) {
-    recv();
-}
-else if(FD_ISSET(stdin)) {
-    scanf();
-}
+Syscall:
+The following calls can be used to make the entire socket operation non-blocking:
+fcntl
+ioctl
+
+```
+int flag = fcntl(sock, F_GETFL, 0);
+fcntl(sock, F_SETFL, flag | O_NONBLOCK);
+```
+
+if the setfl is called before, we may lose the flags already set for the sockfd. That is why, 
+we first get the flags and then set the flags.
+
+## Errors encountered:
+1. bind() returns -1:
+- Address already in use:
+    Socket goes into a TIME_WAIT state
+    Possible reason: server closed before client, and the port is still in use.
+    Solution: Use SO_REUSEADDR socket option.
