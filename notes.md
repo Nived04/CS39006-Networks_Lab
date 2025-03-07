@@ -35,5 +35,7 @@ we first get the flags and then set the flags.
 1. bind() returns -1:
 - Address already in use:
     Socket goes into a TIME_WAIT state
+
     Possible reason: server closed before client, and the port is still in use.
+    
     Solution: Use SO_REUSEADDR socket option.
