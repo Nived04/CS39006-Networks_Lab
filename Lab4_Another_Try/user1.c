@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
         msg.type = -1;
         msg.seq_num = -1;
         int bytesRead = fread(msg.content.data.data, 1, MAX_MESSAGE_SIZE-8, fp);
+        
         printf("user1: Read \n\n%s\n\n", msg.content.data.data);
         if (bytesRead == 0) {
             if (feof(fp)) {

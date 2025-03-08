@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <ksocket.h>
 
-message msg;
+char msg[504];
 const char *eof_marker = "~";
 
 int main(int argc, char *argv[]) {
@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
 
     sleep(2);
     while (1) {
-        int n = k_recvfrom(sockfd, &msg, MAX_MESSAGE_SIZE, 0, NULL, 0);
+        int n = k_recvfrom(sockfd, msg, MAX_MESSAGE_SIZE-8, 0, NULL, 0);
         if (n < 0) {
             if (errno == ENOMESSAGE) {
                 sleep(1);
@@ -48,12 +48,17 @@ int main(int argc, char *argv[]) {
 
         printf("user2: received %d bytes\n", n);
 
-        if (memcmp(msg.content.data.data, eof_marker, 1) == 0) {
+        // for(int i=0; i<n; i++) {
+        //     printf("%c", msg.content.data.data[i]);
+        // }   
+        // printf("\n");
+
+        if (memcmp(msg, eof_marker, 1) == 0) {
             printf("user2: EOF marker received\n");
             break;
         }
 
-        fwrite(msg.content.data.data, 1, n, fp);
+        fwrite(msg, 1, n, fp);
         fflush(fp);
     }
 

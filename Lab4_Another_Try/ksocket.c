@@ -185,12 +185,17 @@ ssize_t k_recvfrom(int sock_index, void *buf, size_t len, int flags, struct sock
     printf("k_recvfrom: Checking slot %d (base=%d, window_size=%d, received: %d)\n", slot, SM[sock_index].r_buff.base, SM[sock_index].r_buff.window_size, SM[sock_index].r_buff.buff.rcv.received[slot]);
 
     if(SM[sock_index].r_buff.buff.rcv.received[slot]) {
-        memcpy(buf, SM[sock_index].r_buff.buff.rcv.buffer[slot], len);
-        // int num = SM[sock_index].r_buff.sequence[slot] - MAX_WINDOW_SIZE;
-        // if(num < 0) {
-        //     num = MAX_SEQ_NUM + num;
+        
+        memcpy(buf, SM[sock_index].r_buff.buff.rcv.buffer[slot].content.data.data, len);
+        
+        // printf("\n----------------\nBuffer:\n");
+        // for(int i=0; i<len; i++) {
+        //     printf("%c", SM[sock_index].r_buff.buff.rcv.buffer[slot].content.data.data[i]);
         // }
+        // printf("\n----------------\n");
+
         numbytes = len;
+
         SM[sock_index].r_buff.buff.rcv.received[slot] = false;
         SM[sock_index].r_buff.window_size++;
     }

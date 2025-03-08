@@ -51,24 +51,16 @@ typedef struct {
 }message;
 
 typedef struct { 
-    // int base;
-    // int swnd;
     int next_seq_num;
-    // int last_ack;
-    // int sequence[MAX_BUFFER_SIZE];
     bool slot_empty[MAX_BUFFER_SIZE];
     message buffer[MAX_BUFFER_SIZE];
     time_t timeout[MAX_WINDOW_SIZE];
 }sending_buffer;
 
 typedef struct {
-    // int base;
-    // int rwnd;
     int last_seq;
-    // int last_ack;
-    // int sequence[MAX_BUFFER_SIZE];
     bool received[MAX_WINDOW_SIZE];
-    char buffer[MAX_BUFFER_SIZE][MAX_MESSAGE_SIZE - 8];
+    message buffer[MAX_BUFFER_SIZE];
 }receiving_buffer;
 
 typedef struct {

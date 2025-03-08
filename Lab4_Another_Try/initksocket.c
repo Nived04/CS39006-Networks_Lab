@@ -94,9 +94,8 @@ void* receiver_thread(void* arg) {
             pthread_mutex_lock(&SM[i].lock);
             // printf("TEST\n");
             if(SM[i].isAlloted && SM[i].isBound && FD_ISSET(SM[i].sockfd, &readfds)) {
-                char temp[512];
                 recvsocket = SM[i].sockfd;
-                numbytes = recvfrom(recvsocket, temp, MAX_MESSAGE_SIZE, 0, (struct sockaddr*)&sender_addr, &addr_len);
+                numbytes = recvfrom(recvsocket, &msg, MAX_MESSAGE_SIZE, 0, (struct sockaddr*)&sender_addr, &addr_len);
                 
                 printf("\nR: Received message on socket: %d\n", i);
                 if(numbytes < 0) {
@@ -109,15 +108,6 @@ void* receiver_thread(void* arg) {
                     FD_CLR(recvsocket, &master);
                 }
                 else {
-                    char type_bytes[4] = {temp[0], temp[1], temp[2], temp[3]};
-                    char seq_bytes[4] = {temp[4], temp[5], temp[6], temp[7]};
-                    for(int i=0; i<504; i++) {
-                        msg.content.data.data[i] = temp[i+8];
-                    }
-
-                    msg.type = *(int*)type_bytes;
-                    msg.seq_num = *(int*)seq_bytes;
-                    // memcpy(msg.content.data.data, temp+8, MAX_MESSAGE_SIZE - 8);
 
                     printf("\nR: Received data of size %zd bytes\n", numbytes);
                     printf("\nR: Message type = %d, seq_num = %d: \n", msg.type, msg.seq_num);
@@ -127,6 +117,7 @@ void* receiver_thread(void* arg) {
                         }
                         printf("\n\n");
                     }
+
                 }
             }
 
@@ -158,8 +149,6 @@ void* receiver_thread(void* arg) {
 
                     // if it is a DATA message:
                     if(type == 1) {
-                        char data[MAX_MESSAGE_SIZE - 8];
-                        memcpy(data, msg.content.data.data, MAX_MESSAGE_SIZE - 8);
 
                         printf("\nR: Received data message on socket: %d, with seq no: %d\n", i, seq);
                         /*
@@ -186,10 +175,15 @@ void* receiver_thread(void* arg) {
                                 if(!SM[i].r_buff.buff.rcv.received[j]) {       
                                     duplicate = false;
                                     SM[i].r_buff.buff.rcv.received[j] = true;
-                                    memcpy(SM[i].r_buff.buff.rcv.buffer[j], data, MAX_MESSAGE_SIZE - 8);                                    
+                                    memcpy(&SM[i].r_buff.buff.rcv.buffer[j], &msg, MAX_MESSAGE_SIZE);                                    
                                     
                                     printf("\nR: Marking message as received in slot %d\n", j);
-                                    
+                                    // printf("** TEST **\n");
+                                    // for(int h=0; h<504; h++) {
+                                    //     printf("%c", SM[i].r_buff.buff.rcv.buffer[j].content.data.data[h]);
+                                    // }
+                                    // printf("\n\n");
+
                                     int new_last_ack_slot = -1;
                                     
                                     int k = SM[i].r_buff.base;
