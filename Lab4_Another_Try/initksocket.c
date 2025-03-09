@@ -22,7 +22,6 @@ void init_socket_sm() {
         pthread_mutex_init(&M[i].lock, &attr);
     }
     
-    // Clean up attributes
     pthread_mutexattr_destroy(&attr);
 
     printf("Socket shared memory initialized with id: %d\n", shmid);
@@ -31,7 +30,6 @@ void init_socket_sm() {
 
 int send_ack(int sockfd, struct sockaddr_in dest_addr, int seq, int rwnd){
     int type = 0;
-    // int nseq = htons(seq), nrwnd = htons(rwnd);
     
     // printf("\n*** ACK for Seq No: %d\n", seq);
 
@@ -107,18 +105,6 @@ void* receiver_thread(void* arg) {
                     SM[i].isAlloted = false;
                     FD_CLR(recvsocket, &master);
                 }
-                else {
-
-                    // printf("\nR: Received data of size %zd bytes\n", numbytes);
-                    // printf("\nR: Received a message of type = %d, seq_num = %d: \n", msg.type, msg.seq_num);
-                    // if(msg.type == 1) {    
-                    //     for(int i=0; i<504; i++) {
-                    //         printf("%c", msg.content.data.data[i]);
-                    //     }
-                    //     printf("\n\n");
-                    // }
-
-                }
             }
 
             pthread_mutex_unlock(&SM[i].lock);
@@ -151,15 +137,6 @@ void* receiver_thread(void* arg) {
                     if(type == 1) {
 
                         printf("\nR: Received DATA message on socket: %d, with seq no: %d\n", i, seq);
-                        /*
-                        * in-order message
-                            the message is written to the buffer after removing the KTP header, the free space in the buffer is computed and the rwnd size is updated accordingly.
-                            The receiver then sends an ACK message to the sender which piggybacks the updated rwnd size, and the sequence number of the last in-order message received within rwnd.
-                        * out-of-order message
-                            keeps the message in the buffer (if the message sequence number is within rwnd) but does not send any ACK message.
-                        * duplicate messages
-                            identifying them with the sequence number and then dropping them if already received once
-                        */
 
                         SM[i].nospace = false;
                         bool duplicate = true;
@@ -169,17 +146,11 @@ void* receiver_thread(void* arg) {
                         // printf("\nR: Current base and its expected sequence number: %d, %d\n", SM[i].r_buff.base, SM[i].r_buff.sequence[SM[i].r_buff.base]);
                         
                         for(int x = 0; x < SM[i].r_buff.window_size; x++, j=(j+1)%MAX_WINDOW_SIZE) {
-                            // if sequence matches expected number in the window and the slot has no received messages
-                            // then write the message to the buffer and update the last_ack and rwnd
                             if(SM[i].r_buff.sequence[j] == seq) { 
                                 if(!SM[i].r_buff.buff.rcv.received[j]) {       
                                     duplicate = false;
                                     SM[i].r_buff.buff.rcv.received[j] = true;
                                     memcpy(&SM[i].r_buff.buff.rcv.buffer[j], &msg, MAX_MESSAGE_SIZE);
-                                    
-                                    printf("\nRECEIVER:\n---------\n");
-                                    fwrite(&SM[i].r_buff.buff.rcv.buffer[j].content.data.data, 1, MAX_MESSAGE_SIZE-8, stdout);
-                                    printf("\n-----------\n");
 
                                     int new_last_ack_slot = -1;
                                     
@@ -189,8 +160,6 @@ void* receiver_thread(void* arg) {
                                             break;
                                         new_last_ack_slot = k;
                                     }
-
-                                    // printf("\n\n\nR: New last ack slot: %d\n\n", new_last_ack_slot);
 
                                     if(new_last_ack_slot != -1) {
                                         SM[i].r_buff.last_ack = SM[i].r_buff.sequence[new_last_ack_slot];
@@ -211,13 +180,11 @@ void* receiver_thread(void* arg) {
                                         SM[i].r_buff.base = (new_last_ack_slot + 1)%MAX_WINDOW_SIZE;
 
                                         int n = send_ack(SM[i].sockfd, SM[i].peer_addr, SM[i].r_buff.last_ack, SM[i].r_buff.window_size);
-                                        if(n < 0) 
-                                            printf("\nR: Error in sending ACK\n");
+                                        if(n < 0) printf("\nR: Error in sending ACK\n");
                                         // else 
                                             // printf("\nR: Sent ACK for seq no: %d from socket: %d\n", SM[i].r_buff.last_ack, i);
                                     }
                                 }
-
                                 break;
                             }
                         }
@@ -225,8 +192,7 @@ void* receiver_thread(void* arg) {
                         if(duplicate) {
                             printf("\nR: Duplicate message: %d\n", seq);
                             int n = send_ack(SM[i].sockfd, SM[i].peer_addr, SM[i].r_buff.last_ack, SM[i].r_buff.window_size);
-                            if(n < 0) 
-                                printf("\nR: Error in sending ACK\n");
+                            if(n < 0) printf("\nR: Error in sending ACK\n");
                         }
 
                         if(SM[i].r_buff.window_size == 0) {
@@ -236,7 +202,6 @@ void* receiver_thread(void* arg) {
                     // if message is ACK:
                     else if(type == 0) {    
                         // printf("\nS: Received ACK for seq no: %d\n", seq);
-
                         int rwnd = ntohs(msg.content.ack.rwnd);
 
                         int j = SM[i].s_buff.base;
@@ -247,22 +212,17 @@ void* receiver_thread(void* arg) {
                                     SM[i].s_buff.buff.snd.timeout[k] = -1;
                                     SM[i].s_buff.buff.snd.slot_empty[k] = true; 
                                     SM[i].s_buff.sequence[k] = (SM[i].s_buff.buff.snd.next_seq_num) + k;
-                                    // SM[i].s_buff.buff.snd.next_seq_num = SM[i].s_buff.sequence[k];
                                     
-                                    // printf("\nS: Setting next sequence number for slot: %d to %d\n", k, SM[i].s_buff.sequence[k]);
-
-                                    if(k == j) {
-                                        break;
-                                    }
+                                    if(k == j) break;
 
                                     k = (k+1)%MAX_WINDOW_SIZE;
                                 }
+
                                 SM[i].s_buff.base = (j+1)%MAX_WINDOW_SIZE;
                                 break;
                             }
                         }
                         
-                        // printf("\nS: Updated base: %d\n", SM[i].s_buff.base);
                         SM[i].s_buff.window_size = rwnd;
                     }
                 }
@@ -277,6 +237,11 @@ void* receiver_thread(void* arg) {
                 if(SM[i].isAlloted == true) {
                     // if socket's peer is not bound
                     if(!SM[i].isBound) {
+
+                        if(SM[i].sockfd > 0) {
+                            close(SM[i].sockfd);
+                        }
+
                         int ksockfd = socket(AF_INET, SOCK_DGRAM, 0);
                         if(ksockfd < 0) {
                             printf("\nR: Error in socket creation\n");
@@ -293,15 +258,12 @@ void* receiver_thread(void* arg) {
                                 if(SM[i].sockfd > maxfd) {
                                     maxfd = SM[i].sockfd;
                                 }
-
-                                //isBound printf("Maxfd: %d\n", maxfd);
                             }
                         }
                     }
                     else if(SM[i].nospace && SM[i].r_buff.window_size > 0) {
                         int n = send_ack(SM[i].sockfd, SM[i].peer_addr, SM[i].r_buff.last_ack, SM[i].r_buff.window_size);
-                        if(n < 0) 
-                            printf("\nR: Error in sending ACK\n");
+                        if(n < 0) printf("\nR: Error in sending ACK\n");
                     }
                 }
 
@@ -323,23 +285,20 @@ void* sender_thread(void* arg) {
 
             time_t base_timeout = SM[i].s_buff.buff.snd.timeout[SM[i].s_buff.base];
             time_t time_diff = time(NULL) - base_timeout;
+
             // if timeout has occurred
             if(time_diff >= T && base_timeout != -1) {
                 int j = SM[i].s_buff.base;
                 for(int x = 0; x < SM[i].s_buff.window_size; x++, j=(j+1)%MAX_WINDOW_SIZE) {
                     if(SM[i].s_buff.buff.snd.timeout[j] != -1) {
-
                         int n = sendto(SM[i].sockfd, &SM[i].s_buff.buff.snd.buffer[j], MAX_MESSAGE_SIZE, 0, (struct sockaddr *)&SM[i].peer_addr, sizeof(SM[i].peer_addr));
-                        if(n < 0) {
-                            printf("S: couldn't send message\n");
-                        }
+                        if(n < 0) { printf("S: couldn't send message\n"); }
+
                         // printf("\nS: Sending seq_no: %d because of timeout\n\n", SM[i].s_buff.buff.snd.buffer[j].seq_num);
-                        // send_message(SM[i].sockfd, SM[i].peer_addr, SM[i].s_buff.sequence[j], SM[i].s_buff.buff.snd.buffer[j]);
+
                         SM[i].s_buff.buff.snd.timeout[j] = time(NULL) + T;
                     }
-                    else {
-                        break;
-                    }
+                    else break;
                 }
             }
 
@@ -355,18 +314,10 @@ void* sender_thread(void* arg) {
                     if(SM[i].s_buff.buff.snd.timeout[j] == -1) {
                         if(!SM[i].s_buff.buff.snd.slot_empty[j]) {
                             printf("S: DATA %u through ksocket: %d\n", SM[i].s_buff.buff.snd.buffer[j].seq_num, i);
-                            
-                            printf("\nSENDER:\n-----------\n");
-                            fwrite(&SM[i].s_buff.buff.snd.buffer[j].content.data.data, 1, MAX_MESSAGE_SIZE-8, stdout);
-                            printf("\n-----------\n");
 
                             int n = sendto(SM[i].sockfd, &SM[i].s_buff.buff.snd.buffer[j], MAX_MESSAGE_SIZE, 0, (struct sockaddr *)&SM[i].peer_addr, sizeof(SM[i].peer_addr));
-                            if(n < 0) {
-                                printf("S: couldn't send message\n");
-                            }
+                            if(n < 0) { printf("S: couldn't send message\n"); }                         
 
-                            // printf("\nS: Sending because of filled slot\n\n");
-                            // send_message(SM[i].sockfd, SM[i].peer_addr, SM[i].s_buff.sequence[j], SM[i].s_buff.buff.snd.buffer[j]);
                             SM[i].s_buff.buff.snd.timeout[j] = time(NULL) + T;
                         }
                     }
@@ -383,14 +334,16 @@ void* garbage_collector_thread(void* arg) {
 
     while(1) {
         sleep(T);
-        // printf("Garbage collector thread\n");
+
         for(int i=0; i<MAX_SOCKETS; i++) {
             pthread_mutex_lock(&SM[i].lock);
 
-            if(SM[i].isAlloted && !SM[i].isClosed) {
+            if(SM[i].isAlloted) {
                 if(kill(SM[i].pid, 0) == -1) {
                     printf("G: Process %d terminated\n", SM[i].pid);
-                    SM[i].isClosed = true;
+                    SM[i].isAlloted = false;
+                    FD_CLR(SM[i].sockfd, &master);
+                    close(SM[i].sockfd);
                 }
             }
 

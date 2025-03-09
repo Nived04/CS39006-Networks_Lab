@@ -30,7 +30,7 @@
 #define MAX_SEQ_NUM 255
 
 #define T 10
-#define P 0.0
+#define P 0.1
 
 typedef struct {
     char data[MAX_MESSAGE_SIZE - 8];
@@ -79,11 +79,8 @@ typedef struct {
     bool isAlloted;
     bool isBound;
     bool nospace;
-    bool isClosed;
     int sockfd;
     int pid;
-    time_t RTO;
-    // time_t last_sent_time;
     struct sockaddr_in peer_addr; 
     struct sockaddr_in self_addr;
     buffer s_buff;
@@ -92,7 +89,7 @@ typedef struct {
 
 ktp_socket* attach_ktp_socket();
 
-int get_socket_num(int, ktp_socket*, int);
+int get_socket_num(ktp_socket*);
 int k_socket(int, int, int);
 int k_bind(int, const char*, int, const char*, int);
 ssize_t k_sendto(int, const void*, size_t, int, const struct sockaddr*, socklen_t);
