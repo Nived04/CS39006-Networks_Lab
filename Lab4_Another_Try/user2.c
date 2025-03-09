@@ -48,17 +48,20 @@ int main(int argc, char *argv[]) {
 
         printf("user2: received %d bytes\n", n);
 
-        // for(int i=0; i<n; i++) {
-        //     printf("%c", msg.content.data.data[i]);
-        // }   
-        // printf("\n");
-
         if (memcmp(msg, eof_marker, 1) == 0) {
             printf("user2: EOF marker received\n");
             break;
         }
 
-        fwrite(msg, 1, n, fp);
+        printf("user2: writing %d bytes to file", n);
+        for(int i=0; i<n; i++) {
+            if(msg[i] == '\0') {
+                continue;
+            }
+            fputc(msg[i], fp);
+            // printf("%c", msg[i]);
+        }
+        // printf("\n-------\n");
         fflush(fp);
     }
 

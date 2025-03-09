@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <ksocket.h>
 
-message msg;
+char msg_data[504];
 const char *eof_marker = "~";
 
 int main(int argc, char *argv[])
@@ -41,28 +41,23 @@ int main(int argc, char *argv[])
 
     sleep(2);
     while (1) {
-        bzero(&msg, MAX_MESSAGE_SIZE);
-        msg.type = -1;
-        msg.seq_num = -1;
-        int bytesRead = fread(msg.content.data.data, 1, MAX_MESSAGE_SIZE-8, fp);
-        
-        printf("user1: Read \n\n%s\n\n", msg.content.data.data);
-        if (bytesRead == 0) {
-            if (feof(fp)) {
-                printf("user1: End of cfile reached.\n");
-                memcpy(msg.content.data.data, eof_marker, 1);
-                bytesRead = 1;
-            }
-            else {
-                perror("user1: fread");
-                fclose(fp);
-                return -1;
-            }
+        bzero(&msg_data, MAX_MESSAGE_SIZE - 8);
+        // int bytesRead = fread(msg_data, 1, MAX_MESSAGE_SIZE-8, fp);
+
+        int cnt = 0;
+        while((cnt < MAX_MESSAGE_SIZE - 8) && !feof(fp)) {
+            msg_data[cnt] = fgetc(fp);
+            cnt++;
         }
-        printf("user1: Read %d bytes.\n", bytesRead);
+        int bytesRead = cnt;
+        printf("\nuser1: Read %d bytes.\n", bytesRead);
+        
+        // printf("\nuser1: Read ------\n%s\n------\n", msg_data);
+
         int numbytes;
         while(1) {
-            numbytes = k_sendto(sockfd, &msg, bytesRead+8, 0, (struct sockaddr *)&addr, sizeof(addr));
+            numbytes = k_sendto(sockfd, msg_data, bytesRead, 0, (struct sockaddr *)&addr, sizeof(addr));
+            
             if (numbytes < 0) {
                 perror("user1: k_send");
                 if (errno != ENOSPACE) {
@@ -74,20 +69,80 @@ int main(int argc, char *argv[])
                     sleep(1);
                 }
             }
-            break;
+            else 
+                break;
         }
 
         printf("user1: Sent %d bytes.\n", numbytes);
 
-        if(memcmp(msg.content.data.data, eof_marker, 1) == 0) {
-            printf("user1: EOF marker sent.\n");
+        if(feof(fp)) {
+            printf("user1: End of file reached.\n");
+            while(true) {
+                char msg_end[1] = "~";
+                numbytes = k_sendto(sockfd, msg_end, 1, 0, (struct sockaddr *)&addr, sizeof(addr));
+                
+                if (numbytes < 0) {
+                    perror("user1: k_send");
+                    if(errno != ENOSPACE) {
+                        fclose(fp);
+                        k_close(sockfd);
+                        return -1;
+                    }
+                    else {
+                        sleep(1);
+                    }
+                }
+                else {
+                    break;
+                }
+            }
             break;
         }
+        
+        // printf("user1: Read \n\n%s\n\n", msg.content.data.data);
+        // if (bytesRead == 0) {
+        //     if (feof(fp)) {
+        //         printf("user1: End of cfile reached.\n");
+        //         memcpy(msg_data, eof_marker, 1);
+        //         bytesRead = 1;
+        //     }
+        //     else {
+        //         perror("user1: fread");
+        //         fclose(fp);
+        //         return -1;
+        //     }
+        // }
+
+        // int numbytes;
+        // while(1) {
+        //     numbytes = k_sendto(sockfd, msg_data, bytesRead+8, 0, (struct sockaddr *)&addr, sizeof(addr));
+            
+        //     if (numbytes < 0) {
+        //         perror("user1: k_send");
+        //         if (errno != ENOSPACE) {
+        //             fclose(fp);
+        //             k_close(sockfd);
+        //             return -1;
+        //         }
+        //         else {
+        //             sleep(1);
+        //         }
+        //     }
+
+        //     break;
+        // }
+
+        // printf("user1: Sent %d bytes.\n", numbytes);
+
+        // if(memcmp(msg_data, eof_marker, 1) == 0) {
+        //     printf("user1: EOF marker sent.\n");
+        //     break;
+        // }
     }
 
     fclose(fp);
 
-    sleep(100);
+    sleep(20);
 
     k_close(sockfd);
     return 0;

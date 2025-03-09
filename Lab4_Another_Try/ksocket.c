@@ -128,7 +128,7 @@ int k_bind(int sock_index, const char *src_ip, int src_port, const char *dest_ip
 }
 
 ssize_t k_sendto(int sock_index, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen){
-    printf("Called k_sendto\n");
+    // printf("Called k_sendto\n");
     fflush(NULL);
     ktp_socket* SM = attach_ktp_socket();
 
@@ -145,21 +145,24 @@ ssize_t k_sendto(int sock_index, const void *buf, size_t len, int flags, const s
     for(int i=0; i<MAX_BUFFER_SIZE; i++) {
         if(SM[sock_index].s_buff.buff.snd.slot_empty[i]) {
             // printf("Entered slot %d\n", i);
-            ssize_t copybytes = len < MAX_MESSAGE_SIZE ? len : MAX_MESSAGE_SIZE;
-            memcpy(&SM[sock_index].s_buff.buff.snd.buffer[i], buf, len);
+
+            ssize_t copybytes = len + 8 < MAX_MESSAGE_SIZE ? len : MAX_MESSAGE_SIZE;
+            memcpy(&SM[sock_index].s_buff.buff.snd.buffer[i].content.data.data, buf, len);
             
             SM[sock_index].s_buff.buff.snd.buffer[i].type = 1;
             SM[sock_index].s_buff.buff.snd.buffer[i].seq_num = SM[sock_index].s_buff.buff.snd.next_seq_num;
             
+            // printf("k_sendto: len: %ld, copybytes: %ld, seq_num: %d\n", len, copybytes, SM[sock_index].s_buff.buff.snd.buffer[i].seq_num);
+
             for (int i = len; i < MAX_MESSAGE_SIZE - 8; i++){
                 SM[sock_index].s_buff.buff.snd.buffer[i].content.data.data[i] = '\0';
             }
             
             SM[sock_index].s_buff.buff.snd.slot_empty[i] = false;
             SM[sock_index].s_buff.buff.snd.timeout[i] = -1;
-            SM[sock_index].s_buff.buff.snd.next_seq_num++;
+            SM[sock_index].s_buff.buff.snd.next_seq_num = (SM[sock_index].s_buff.buff.snd.next_seq_num)%MAX_SEQ_NUM + 1;
             
-            printf("k_sendto: Message \n\n%s\n\n sent with sock_index: %d and buffer index: %d\n\n", SM[sock_index].s_buff.buff.snd.buffer[i].content.data.data, sock_index, i);
+            // printf("k_sendto: Message \n\n%s\n\n sent with sock_index: %d and buffer index: %d\n\n", SM[sock_index].s_buff.buff.snd.buffer[i].content.data.data, sock_index, i);
             
             pthread_mutex_unlock(&SM[sock_index].lock);
             
@@ -174,7 +177,7 @@ ssize_t k_sendto(int sock_index, const void *buf, size_t len, int flags, const s
 }
 
 ssize_t k_recvfrom(int sock_index, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen){
-    printf("k_recvfrom called\n");
+    // printf("k_recvfrom called\n");
     ktp_socket* SM = attach_ktp_socket();
 
     pthread_mutex_lock(&SM[sock_index].lock);
@@ -182,10 +185,15 @@ ssize_t k_recvfrom(int sock_index, void *buf, size_t len, int flags, struct sock
     int numbytes, slot; 
     slot = (SM[sock_index].r_buff.base + SM[sock_index].r_buff.window_size) % MAX_WINDOW_SIZE;
 
-    printf("k_recvfrom: Checking slot %d (base=%d, window_size=%d, received: %d)\n", slot, SM[sock_index].r_buff.base, SM[sock_index].r_buff.window_size, SM[sock_index].r_buff.buff.rcv.received[slot]);
+    // printf("k_recvfrom: Checking slot %d (base=%d, window_size=%d, received: %d)\n", slot, SM[sock_index].r_buff.base, SM[sock_index].r_buff.window_size, SM[sock_index].r_buff.buff.rcv.received[slot]);
 
     if(SM[sock_index].r_buff.buff.rcv.received[slot]) {
-        
+        // char* temp = (char*)buf;
+
+        // for(int i=0; i<len; i++) {
+        //     temp[i] = SM[sock_index].r_buff.buff.rcv.buffer[slot].content.data.data[i];
+        // }
+
         memcpy(buf, SM[sock_index].r_buff.buff.rcv.buffer[slot].content.data.data, len);
         
         // printf("\n----------------\nBuffer:\n");
