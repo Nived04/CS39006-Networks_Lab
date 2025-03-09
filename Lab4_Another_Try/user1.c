@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     addr.sin_addr.s_addr = inet_addr(dest_ip);
 
     // FILE *fp = fopen("lorem_10KB.txt", "r");
-    FILE *fp = fopen("lorem_10KB.txt", "r");
+    FILE *fp = fopen("Lorem.txt", "r");
     if (fp == NULL) {
         perror("user1: fopen");
         return -1;
@@ -45,13 +45,22 @@ int main(int argc, char *argv[])
         // int bytesRead = fread(msg_data, 1, MAX_MESSAGE_SIZE-8, fp);
 
         int cnt = 0;
-        while((cnt < MAX_MESSAGE_SIZE - 8) && !feof(fp)) {
+        while((cnt < MAX_MESSAGE_SIZE - 8)) {
             msg_data[cnt] = fgetc(fp);
+            // printf("%d\n", msg_data[cnt]);
             cnt++;
+            if(msg_data[cnt-1] == EOF) {
+                cnt--;
+                break;
+            }
         }
         int bytesRead = cnt;
         printf("\nuser1: Read %d bytes.\n", bytesRead);
         
+        printf("\nuser1: Read ------\n");
+        fwrite(msg_data, 1, bytesRead, stdout);
+        printf("\n------\n");
+
         // printf("\nuser1: Read ------\n%s\n------\n", msg_data);
 
         int numbytes;

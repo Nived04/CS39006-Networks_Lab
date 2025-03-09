@@ -175,14 +175,11 @@ void* receiver_thread(void* arg) {
                                 if(!SM[i].r_buff.buff.rcv.received[j]) {       
                                     duplicate = false;
                                     SM[i].r_buff.buff.rcv.received[j] = true;
-                                    memcpy(&SM[i].r_buff.buff.rcv.buffer[j], &msg, MAX_MESSAGE_SIZE);                                    
+                                    memcpy(&SM[i].r_buff.buff.rcv.buffer[j], &msg, MAX_MESSAGE_SIZE);
                                     
-                                    // printf("\nR: Marking message as received in slot %d\n", j);
-                                    // printf("** TEST **\n");
-                                    // for(int h=0; h<504; h++) {
-                                    //     printf("%c", SM[i].r_buff.buff.rcv.buffer[j].content.data.data[h]);
-                                    // }
-                                    // printf("\n\n");
+                                    printf("\nRECEIVER:\n---------\n");
+                                    fwrite(&SM[i].r_buff.buff.rcv.buffer[j].content.data.data, 1, MAX_MESSAGE_SIZE-8, stdout);
+                                    printf("\n-----------\n");
 
                                     int new_last_ack_slot = -1;
                                     
@@ -331,7 +328,7 @@ void* sender_thread(void* arg) {
                 int j = SM[i].s_buff.base;
                 for(int x = 0; x < SM[i].s_buff.window_size; x++, j=(j+1)%MAX_WINDOW_SIZE) {
                     if(SM[i].s_buff.buff.snd.timeout[j] != -1) {
-                        
+
                         int n = sendto(SM[i].sockfd, &SM[i].s_buff.buff.snd.buffer[j], MAX_MESSAGE_SIZE, 0, (struct sockaddr *)&SM[i].peer_addr, sizeof(SM[i].peer_addr));
                         if(n < 0) {
                             printf("S: couldn't send message\n");
@@ -358,6 +355,10 @@ void* sender_thread(void* arg) {
                     if(SM[i].s_buff.buff.snd.timeout[j] == -1) {
                         if(!SM[i].s_buff.buff.snd.slot_empty[j]) {
                             printf("S: DATA %u through ksocket: %d\n", SM[i].s_buff.buff.snd.buffer[j].seq_num, i);
+                            
+                            printf("\nSENDER:\n-----------\n");
+                            fwrite(&SM[i].s_buff.buff.snd.buffer[j].content.data.data, 1, MAX_MESSAGE_SIZE-8, stdout);
+                            printf("\n-----------\n");
 
                             int n = sendto(SM[i].sockfd, &SM[i].s_buff.buff.snd.buffer[j], MAX_MESSAGE_SIZE, 0, (struct sockaddr *)&SM[i].peer_addr, sizeof(SM[i].peer_addr));
                             if(n < 0) {

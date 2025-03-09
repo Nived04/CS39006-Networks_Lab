@@ -61,7 +61,6 @@ int main(int argc, char *argv[]) {
             fputc(msg[i], fp);
             // printf("%c", msg[i]);
         }
-        // printf("\n-------\n");
         fflush(fp);
     }
 
