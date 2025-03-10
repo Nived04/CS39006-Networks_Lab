@@ -145,7 +145,8 @@ void* receiver_thread(void* arg) {
                         
                     for(int x = 0; x < SM[sock_index].r_buff.window_size; x++, j=(j+1)%MAX_WINDOW_SIZE) {
                         if(SM[sock_index].r_buff.sequence[j] == seq) { 
-                            if(!SM[sock_index].r_buff.buff.rcv.received[j]) {       
+                            if(!SM[sock_index].r_buff.buff.rcv.received[j]) { 
+
                                 duplicate = false;
                                 SM[sock_index].r_buff.buff.rcv.received[j] = true;
                                 memcpy(&SM[sock_index].r_buff.buff.rcv.buffer[j], &msg, MAX_MESSAGE_SIZE);
@@ -207,8 +208,11 @@ void* receiver_thread(void* arg) {
                             while(true) {
                                 SM[sock_index].s_buff.buff.snd.timeout[k] = -1;
                                 SM[sock_index].s_buff.buff.snd.slot_empty[k] = true; 
-                                SM[sock_index].s_buff.sequence[k] = (SM[sock_index].s_buff.buff.snd.next_seq_num) + k;
+                                SM[sock_index].s_buff.sequence[k] = (SM[sock_index].s_buff.buff.snd.last_seq)%MAX_SEQ_NUM + 1;
+                                SM[sock_index].s_buff.buff.snd.last_seq = SM[sock_index].s_buff.sequence[k];
                                 
+                                // printf("\nS: setting next_seq_num to: %d\n", SM[sock_index].s_buff.buff.snd.next_seq_num);
+
                                 if(k == j) break;
 
                                 k = (k+1)%MAX_WINDOW_SIZE;

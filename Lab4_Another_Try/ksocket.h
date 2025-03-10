@@ -27,7 +27,7 @@
 
 #define MAX_SOCKETS 10
 #define MAX_BUFFER_SIZE 10
-#define MAX_SEQ_NUM 255
+#define MAX_SEQ_NUM 200
 
 #define T 10
 #define P 0.05
@@ -51,7 +51,8 @@ typedef struct {
 }message;
 
 typedef struct { 
-    int next_seq_num;
+    // int next_seq_num;
+    int last_seq;
     bool slot_empty[MAX_BUFFER_SIZE];
     message buffer[MAX_BUFFER_SIZE];
     time_t timeout[MAX_WINDOW_SIZE];

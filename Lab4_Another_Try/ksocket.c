@@ -30,7 +30,8 @@ int get_socket_num(ktp_socket* M) {
 
 void init_sending_buffer(buffer* sb) {
     sb->base = 0;
-    sb->buff.snd.next_seq_num = 1;
+    // sb->buff.snd.next_seq_num = 1;
+    sb->buff.snd.last_seq = 10;
     sb->window_size = MAX_WINDOW_SIZE;
     sb->last_ack = 0;
     for(int i = 0; i < MAX_WINDOW_SIZE; i++) {
@@ -129,14 +130,15 @@ ssize_t k_sendto(int sock_index, const void *buf, size_t len, int flags, const s
         return -1;
     }
 
-    for(int i=0; i<MAX_BUFFER_SIZE; i++) {
+    int i=SM[sock_index].s_buff.base;
+    for(int x = 0; x < SM[sock_index].s_buff.window_size; x++, i=(i+1)%MAX_WINDOW_SIZE) {
         if(SM[sock_index].s_buff.buff.snd.slot_empty[i]) {
 
             ssize_t copybytes = (len + 8 < MAX_MESSAGE_SIZE) ? len : MAX_MESSAGE_SIZE;
             memcpy(&SM[sock_index].s_buff.buff.snd.buffer[i].content.data.data, buf, len);
             
             SM[sock_index].s_buff.buff.snd.buffer[i].type = 1;
-            SM[sock_index].s_buff.buff.snd.buffer[i].seq_num = SM[sock_index].s_buff.buff.snd.next_seq_num;
+            SM[sock_index].s_buff.buff.snd.buffer[i].seq_num = SM[sock_index].s_buff.sequence[i];
             
             for (int f = copybytes; f < MAX_MESSAGE_SIZE - 8; f++){
                 SM[sock_index].s_buff.buff.snd.buffer[i].content.data.data[f] = '\0';
@@ -146,7 +148,7 @@ ssize_t k_sendto(int sock_index, const void *buf, size_t len, int flags, const s
 
             SM[sock_index].s_buff.buff.snd.slot_empty[i] = false;
             SM[sock_index].s_buff.buff.snd.timeout[i] = -1;
-            SM[sock_index].s_buff.buff.snd.next_seq_num = (SM[sock_index].s_buff.buff.snd.next_seq_num)%MAX_SEQ_NUM + 1;
+            // SM[sock_index].s_buff.buff.snd.next_seq_num = (SM[sock_index].s_buff.buff.snd.next_seq_num)%MAX_SEQ_NUM + 1;
             
             pthread_mutex_unlock(&SM[sock_index].lock);
 
