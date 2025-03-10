@@ -1,90 +1,90 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include "ksocket.h"
+/*
+Assignment 4 Submission
+Name: Nived Roshan Shah
+RollNo: 22CS10049
+*/
 
-#define BUFFER_SIZE 512
-#define OUTPUT_FILE "received_file.txt"  // Change this to your desired output file
+#include <stdio.h>
+#include <ksocket.h>
+
+char msg[504];
+const char *eof_marker = "~";
 
 int main(int argc, char *argv[]) {
-    if (argc != 5) {
-        printf("Usage: %s <source_ip> <source_port> <dest_ip> <dest_port>\n", argv[0]);
-        exit(1);
+    if(argc != 5){
+        printf("Enter Src IP, Src Port, Dest IP and Dest Port in that order\n");
+        return -1;
     }
 
-    // Create socket
+    const char *src_ip = argv[1];
+    int src_port = atoi(argv[2]);
+    const char *dest_ip = argv[3];
+    int dest_port = atoi(argv[4]);
+
     int sockfd = k_socket(AF_INET, SOCK_KTP, 0);
-    if (sockfd < 0) {
-        perror("k_socket failed");
-        exit(1);
+    if(sockfd < 0) {
+        if(errno == ENOSPACE) {
+            printf("user1: k_socket: No space for new socket\n");
+        }
+        else {
+            perror("user1: k_socket");
+        }
+        return -1;
     }
 
-    // Bind socket with source and destination
-    if (k_bind(sockfd, argv[1], atoi(argv[2]), argv[3], atoi(argv[4])) < 0) {
-        perror("k_bind failed");
-        exit(1);
+    if ((k_bind(sockfd, src_ip, src_port, dest_ip, dest_port)) < 0) {
+        perror("user2: k_bind");
+        return -1;
     }
 
-    // printf("User2 bound to source %s:%s, destination %s:%s\n", argv[1], argv[2], argv[3], argv[4]);
-
-    // Open output file
-    FILE *fp = fopen(OUTPUT_FILE, "wb");
+    char file_name[100];
+    sprintf(file_name, "received_%d.txt", src_port);
+    FILE *fp = fopen(file_name, "w");
     if (fp == NULL) {
-        perror("File open failed");
-        exit(1);
+        printf("user1: Error in opening file\n");
+        return -1;
     }
 
-    // Prepare source address for recvfrom
-    struct sockaddr_in src_addr;
-    socklen_t src_addr_len = sizeof(src_addr);
-
-    // Receive and write data
-    char buffer[BUFFER_SIZE];
-    int total_bytes_received = 0;
-    ssize_t bytes_received;
-    int consecutive_errors = 0;
-    const int MAX_CONSECUTIVE_ERRORS = 10;  // After this many ENOMESSAGE errors, assume transfer is complete
+    sleep(2);
 
     while (1) {
-        bytes_received = k_recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&src_addr, &src_addr_len);
-        
-        if (bytes_received < 0) {
-            if (error_var == ENOMESSAGE) {
-                // No message available, wait a bit and retry
-                consecutive_errors++;
-                if (consecutive_errors > MAX_CONSECUTIVE_ERRORS) {
-                    printf("\nNo more messages. Assuming transfer complete.\n");
-                    break;
-                }
-                usleep(100000);  // 100ms sleep
+        int bytesRecv = k_recvfrom(sockfd, msg, MAX_MESSAGE_SIZE-8, 0, NULL, 0);
+
+        if (bytesRecv < 0) {
+            if (errno == ENOMESSAGE) {
+                sleep(1);
                 continue;
-            } else {
-                perror("k_recvfrom failed");
-                break;
             }
+            fclose(fp);
+            k_close(sockfd);
+            return -1;
         }
 
-        // Reset error counter on successful receive
-        consecutive_errors = 0;
+        printf("\nuser2: --- Received Message ---\n");
+        for(int i=0; i<bytesRecv; i++) {
+            printf("%c", msg[i]);
+        }
+        printf("\n");
+        printf("--- of %d bytes ---\n\n", bytesRecv);
 
-        // Write received data to file
-        size_t written = fwrite(buffer, 1, bytes_received, fp);
-        if (written < bytes_received) {
-            perror("File write failed");
+        if (memcmp(msg, eof_marker, 1) == 0) {
+            printf("user2: \"finished_reading\" marker received\n");
             break;
         }
 
-        total_bytes_received += bytes_received;
-        printf("\rReceived %d bytes", total_bytes_received);
-        fflush(stdout);
+        printf("user2: Writing content to file\n");
+        for(int i=0; i<bytesRecv; i++) {
+            if(msg[i] == '\0') {
+                continue;
+            }
+            fputc(msg[i], fp);
+        }
+        fflush(fp);
     }
 
-    printf("\nFile transfer complete. Total bytes received: %d\n", total_bytes_received);
-
-    // Close file and socket
     fclose(fp);
-    k_close(sockfd);
 
+    k_close(sockfd);
+    
     return 0;
 }
