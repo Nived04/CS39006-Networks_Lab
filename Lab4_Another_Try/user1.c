@@ -71,7 +71,9 @@ int main(int argc, char *argv[])
     addr.sin_port = htons(dest_port);
     addr.sin_addr.s_addr = inet_addr(dest_ip);
 
-    FILE *fp = fopen("Lorem.txt", "r");
+    // FILE *fp = fopen("lorem_1KB.txt", "r");
+    // FILE *fp = fopen("lorem_10KB.txt", "r");
+    FILE *fp = fopen("lorem_100KB.txt", "r");
     if(fp == NULL) {
         printf("user1: Error in opening file\n");
         return -1;

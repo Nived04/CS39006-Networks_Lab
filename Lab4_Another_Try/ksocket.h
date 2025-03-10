@@ -30,7 +30,7 @@
 #define MAX_SEQ_NUM 255
 
 #define T 10
-#define P 0.1
+#define P 0.05
 
 typedef struct {
     char data[MAX_MESSAGE_SIZE - 8];

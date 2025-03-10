@@ -1,17 +1,9 @@
 SHELL := /bin/sh
-RM := rm -f
-IP := 127.0.0.1
-PORT1 := 5050
-PORT2 := 5051
-PORT3 := 8080
-PORT4 := 8081
-LIBNAME = libksocket.a 
-OBJFILES = ksocket.o
 
-library: $(OBJFILES)
-	ar rs $(LIBNAME) $(OBJFILES)
+library: ksocket.o
+	ar rs libksocket.a ksocket.o
 
-$(OBJFILES): ksocket.h ksocket.c
+ksocket.o: ksocket.h ksocket.c
 
 init: library initksocket.c 
 	gcc -g -I. -Wall -L. -o initk initksocket.c -lksocket
@@ -24,11 +16,15 @@ runinit: init
 	./initk
 
 runuser: user
-	gnome-terminal -- bash -c "./u1 $(IP) $(PORT1) $(IP) $(PORT2); exec bash"
-	gnome-terminal -- bash -c "./u2 $(IP) $(PORT2) $(IP) $(PORT1); exec bash"
+	@for i in 1; do \
+		PORT_A=`expr 5000 + $$i \* 2 - 1`; \
+		PORT_B=`expr 5000 + $$i \* 2`; \
+		gnome-terminal -- bash -c "./u1 127.0.0.1 $$PORT_A 127.0.0.1 $$PORT_B; exec bash"; \
+		gnome-terminal -- bash -c "./u2 127.0.0.1 $$PORT_B 127.0.0.1 $$PORT_A; exec bash"; \
+	done
 
-clean:
-	rm -f $(OBJFILES) initk u1 u2 received*.txt
+file_clean:
+	rm -f ksocket.o initk u1 u2 received*.txt
 
-deepclean: clean
-	rm -f $(LIBNAME)
+lib_clean: file_clean
+	rm -f libksocket.a
