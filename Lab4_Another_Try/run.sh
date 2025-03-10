@@ -1,4 +1,4 @@
-make lib_clean
+make clean
 make library
 make init
 make user

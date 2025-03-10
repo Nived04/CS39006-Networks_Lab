@@ -1,9 +1,12 @@
+/*
+Assignment 4 Submission
+Name: Nived Roshan Shah
+RollNo: 22CS10049
+*/
+
 #include "ksocket.h"
 
 fd_set master;
-
-int send_count_timeout = 0;
-int send_count_new = 0;
 
 void init_socket_sm() {
     key_t key = ftok(KEY_STRING, VAL);
@@ -281,24 +284,27 @@ void* sender_thread(void* arg) {
         for(int i=0; i<MAX_SOCKETS; i++) {
             pthread_mutex_lock(&SM[i].lock);
 
-            time_t base_timeout = SM[i].s_buff.buff.snd.timeout[SM[i].s_buff.base];
-            time_t time_diff = time(NULL) - base_timeout;
-
-            // if timeout has occurred
-            if(time_diff >= T && base_timeout != -1) {
-                int j = SM[i].s_buff.base;
-                for(int x = 0; x < SM[i].s_buff.window_size; x++, j=(j+1)%MAX_WINDOW_SIZE) {
-                    if(SM[i].s_buff.buff.snd.timeout[j] != -1) {
-                        int n = sendto(SM[i].sockfd, &SM[i].s_buff.buff.snd.buffer[j], MAX_MESSAGE_SIZE, 0, (struct sockaddr *)&SM[i].peer_addr, sizeof(SM[i].peer_addr));
-                        if(n < 0) { printf("\nS: couldn't send message\n"); }
+            if(SM[i].isAlloted && SM[i].isBound) {
+                time_t base_timeout = SM[i].s_buff.buff.snd.timeout[SM[i].s_buff.base];
+                time_t time_diff = time(NULL) - base_timeout;
+                
+                // if timeout has occurred
+                if(time_diff >= T && base_timeout > 0) {
+                    int j = SM[i].s_buff.base;
+                    for(int x = 0; x < SM[i].s_buff.window_size; x++, j=(j+1)%MAX_WINDOW_SIZE) {
+                        if(SM[i].s_buff.buff.snd.slot_empty[j] || SM[i].s_buff.buff.snd.timeout[j] < 0) {
+                            break;
+                        }
                         
-                        send_count_timeout++;
-
-                        // printf("\nS: Send count for timeouts: %d\n", send_count_timeout);
-
+                        int n = sendto(SM[i].sockfd, &SM[i].s_buff.buff.snd.buffer[j], MAX_MESSAGE_SIZE, 0, (struct sockaddr *)&SM[i].peer_addr, sizeof(SM[i].peer_addr));
+                    
+                        if(n < 0) { 
+                            printf("\nS: couldn't send message\n"); 
+                        }
+                    
                         SM[i].s_buff.buff.snd.timeout[j] = time(NULL) + T;
+                        
                     }
-                    else break;
                 }
             }
 
@@ -316,10 +322,7 @@ void* sender_thread(void* arg) {
                             printf("\nS: Sending message of sequence no: %d through ksocket: %d\n", SM[i].s_buff.buff.snd.buffer[j].seq_num, i);
 
                             int n = sendto(SM[i].sockfd, &SM[i].s_buff.buff.snd.buffer[j], MAX_MESSAGE_SIZE, 0, (struct sockaddr *)&SM[i].peer_addr, sizeof(SM[i].peer_addr));
-                            if(n < 0) { printf("\nS: couldn't send message\n"); }                         
-
-                            send_count_new++;
-                            // printf("\nS: Send count for new messages: %d\n", send_count_new);
+                            if(n < 0) { printf("\nS: couldn't send message\n"); } 
 
                             SM[i].s_buff.buff.snd.timeout[j] = time(NULL) + T;
                         }

@@ -1,3 +1,9 @@
+/*
+Assignment 4 Submission
+Name: Nived Roshan Shah
+RollNo: 22CS10049
+*/
+
 #include "ksocket.h"
 
 ktp_socket* attach_ktp_socket() {
@@ -57,10 +63,14 @@ bool dropMessage(float p) {
     return r < p;
 }
 
+/* 
+==================================================================================
+*/
+
 int k_socket(int domain, int type, int protocol) {
     fflush(NULL);
     if(type != SOCK_KTP) {
-        // throw error saying that this function only allows sock_ktp type
+        printf("k_socket: Invalid socket type, only type: SOCK_KTP is supported\n");
         exit(1);
     }
 
@@ -76,7 +86,7 @@ int k_socket(int domain, int type, int protocol) {
 
     pthread_mutex_lock(&SM[free_sock].lock);
 
-    SM[free_sock].isAlloted = true;
+    SM[free_sock].isAlloted = true; 
     SM[free_sock].isBound = false;
     SM[free_sock].nospace = false;
     SM[free_sock].pid = getpid();

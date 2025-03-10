@@ -1,3 +1,9 @@
+/*
+Assignment 4 Submission
+Name: Nived Roshan Shah
+RollNo: 22CS10049
+*/
+
 #include <stdio.h>
 #include <ksocket.h>
 
@@ -24,13 +30,16 @@ void send_message(int sockfd, struct sockaddr_in addr, char* msg, int len, FILE*
         numbytes = k_sendto(sockfd, msg, len, 0, (struct sockaddr *)&addr, sizeof(addr));
         
         if (numbytes < 0) {
-            perror("user1: k_send");
-            if (errno != ENOSPACE) {
+            if(errno == ENOSPACE) {
+                printf("user1: k_send: No space for new message, trying again...\n");
+                sleep(1);
+            }
+            else {
+                perror("user1: k_send");
                 fclose(fp);
                 k_close(sockfd);
                 exit(-1);
             }
-            else sleep(1);
         }
         else break;
     }

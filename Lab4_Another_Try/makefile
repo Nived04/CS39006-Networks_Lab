@@ -23,8 +23,6 @@ runuser: user
 		gnome-terminal -- bash -c "./u2 127.0.0.1 $$PORT_B 127.0.0.1 $$PORT_A; exec bash"; \
 	done
 
-file_clean:
+clean:
 	rm -f ksocket.o initk u1 u2 received*.txt
-
-lib_clean: file_clean
 	rm -f libksocket.a
