@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
 
     fclose(fp);
 
-    sleep(20);
+    sleep(100);
 
     k_close(sockfd);
     return 0;
