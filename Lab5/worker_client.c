@@ -6,6 +6,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
 typedef struct {
     int type;
@@ -96,9 +97,14 @@ int main() {
 
             printf("Result %d sent\n", result);
         } 
+        else if(msg.type == 404) {
+            printf("All tasks completed\n");
+        }
         else {
             printf("Need to process received task first\n");
         }
-
     }
+
+    close(client_sockfd);
+    return 0;
 }

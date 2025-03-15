@@ -9,12 +9,17 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/sem.h>
+#include <sys/shm.h>
 #include <string.h>
 
 #define KEY "/"
 #define VAL 65
-#define P(s) semop(s, &pop, 1);
-#define V(s) semop(s, &vop, 1);
+#define P(s) semop(s, &pop, 1)
+#define V(s) semop(s, &vop, 1)
+
+// Define a fixed-size array for tasks
+#define MAX_TASKS 100
+#define MAX_RESULTS 100
 
 int task_count = 0;
 int ready_for_new[1050];
@@ -25,38 +30,68 @@ int task_number = 0;
 typedef struct {
     int type;
     char data[50];
-}message;
+} message;
 
 struct sembuf pop, vop;
 
 const char filename[20] = "tasks.txt";
 
-// queue of computational tasks
-typedef struct task {
+typedef struct {
     int id;
     char expression[50];
-    struct task *next;
-}task;
+}task_item;
 
-task *head = NULL;
+typedef struct {
+    task_item tasks[MAX_TASKS];
+    int front;
+    int rear;
+    int count;
+}task_queue;
 
+typedef struct {
+    int task_id;
+    int computed_value;
+}result_item;
+
+typedef struct {
+    result_item results[MAX_RESULTS];
+    int count;
+}result_queue;
+
+task_queue *shared_task_q;
+result_queue *shared_result_q;
+
+int is_queue_empty() {
+    return (shared_task_q->count == 0);
+}
+
+int is_queue_full() {
+    return (shared_task_q->count == MAX_TASKS);
+}
+
+// Add a task to the queue
 void add_task(char expression[]) {
-    task_count++;
-
-    task *new_task = (task *)malloc(sizeof(task));
-    strcpy(new_task->expression, expression);
-    new_task->id = task_count;
-    new_task->next = NULL;
-
-    if (head == NULL) {
-        head = new_task;
-    } else {
-        task *current = head;
-        while (current->next != NULL) {
-            current = current->next;
-        }
-        current->next = new_task;
+    if (is_queue_full()) {
+        printf("Task queue is full\n");
+        return;
     }
+    
+    shared_task_q->rear = (shared_task_q->rear + 1) % MAX_TASKS;
+    shared_task_q->tasks[shared_task_q->rear].id = ++task_count;
+    strcpy(shared_task_q->tasks[shared_task_q->rear].expression, expression);
+    shared_task_q->count++;
+}
+
+task_item* get_task() {
+    if (is_queue_empty()) {
+        return NULL;
+    }
+    
+    task_item* task = &shared_task_q->tasks[shared_task_q->front];
+    shared_task_q->front = (shared_task_q->front + 1) % MAX_TASKS;
+    shared_task_q->count--;
+    
+    return task;
 }
 
 void populateTaskQueue() {
@@ -76,40 +111,21 @@ void populateTaskQueue() {
     return;
 }
 
-typedef struct computed_result {
-    int task_id;
-    int computed_value;
-    struct computed_result *next;
-}computed_result;
-
-computed_result *priority_head = NULL;
-
 void insert_computed_result(int task_id, int computed_value) {
-    computed_result *new_task = (computed_result *)malloc(sizeof(computed_result));
-    new_task->task_id = task_id;
-    new_task->computed_value = computed_value;
-    new_task->next = NULL;
-
-    if (priority_head == NULL || priority_head->task_id > task_id) {
-        new_task->next = priority_head;
-        priority_head = new_task;
-    } else {
-        computed_result *current = priority_head;
-        while (current->next != NULL && current->next->task_id <= task_id) {
-            current = current->next;
-        }
-        new_task->next = current->next;
-        current->next = new_task;
+    if (shared_result_q->count >= MAX_RESULTS) {
+        printf("Result queue is full\n");
+        return;
     }
-}
-
-computed_result *pop_computed_result() {
-    if (priority_head == NULL) {
-        return NULL;
+    
+    int pos = shared_result_q->count;
+    while (pos > 0 && shared_result_q->results[pos-1].task_id > task_id) {
+        shared_result_q->results[pos] = shared_result_q->results[pos-1];
+        pos--;
     }
-    computed_result *task_to_return = priority_head;
-    priority_head = priority_head->next;
-    return task_to_return;
+    
+    shared_result_q->results[pos].task_id = task_id;
+    shared_result_q->results[pos].computed_value = computed_value;
+    shared_result_q->count++;
 }
 
 void allocate_task(int comm_sockfd) {
@@ -127,23 +143,27 @@ void allocate_task(int comm_sockfd) {
 
     ready_for_new[comm_sockfd] = 0;
 
-    task *current = head;
-    head = head->next;    
+    task_item* task = get_task();
+    if (task == NULL) {
+        msg.type = 404;
+        strcpy(msg.data, "No tasks available");
+        for(int i=strlen(msg.data); i<50; i++) {
+            msg.data[i] = '\0';
+        }
+        send(comm_sockfd, &msg, sizeof(message), 0);
+        ready_for_new[comm_sockfd] = 1;
+        return;
+    }
+    
     task_id_for_worker[comm_sockfd] = ++task_number;
     
-    printf("Task ID: %d, Task: %s\n", task_number, current->expression);
-
     msg.type = 200;
-    strcpy(msg.data, current->expression);
+    strcpy(msg.data, task->expression);
     for(int i=strlen(msg.data); i<50; i++) {
         msg.data[i] = '\0';
     }
 
     send(comm_sockfd, &msg, sizeof(message), 0);
-
-    free(current);
-
-    return;
 }
 
 void store_result(int comm_sockfd, char recv_buff[]) {  
@@ -154,13 +174,30 @@ void store_result(int comm_sockfd, char recv_buff[]) {
     }
 
     insert_computed_result(task_id_for_worker[comm_sockfd], computed_value);
-
     ready_for_new[comm_sockfd] = 1;
-
     return;
 }
 
 int main() {
+    int shmid = shmget(IPC_PRIVATE, sizeof(task_queue) + sizeof(result_queue), IPC_CREAT | 0666);
+    if (shmid < 0) {
+        perror("shmget failed");
+        exit(1);
+    }
+    
+    void *shm_ptr = shmat(shmid, NULL, 0);
+    if (shm_ptr == (void *) -1) {
+        perror("shmat failed");
+        exit(1);
+    }
+    
+    shared_task_q = (task_queue *)shm_ptr;
+    shared_result_q = (result_queue *)((char *)shm_ptr + sizeof(task_queue));
+    
+    shared_task_q->front = 0;
+    shared_task_q->rear = -1;
+    shared_task_q->count = 0;
+    shared_result_q->count = 0;
 
     int q_sem = semget(ftok(KEY, VAL), 1, IPC_CREAT | 0666);
     if(q_sem < 0) {
@@ -183,13 +220,12 @@ int main() {
 
     struct sockaddr_in server_addr, client_addr;
     int server_sockfd, comm_sockfd;
-    int clilen;
+    socklen_t clilen;
 
     if((server_sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Unable to create socket\n");
         exit(0);
     }
-    
     
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -203,37 +239,30 @@ int main() {
     int flags = fcntl(server_sockfd, F_GETFL, 0);
     fcntl(server_sockfd, F_SETFL, flags|O_NONBLOCK);
 
+    int yes = 1;
+    if (setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+        perror("server: setsockopt");
+        exit(1);
+    }
+
     listen(server_sockfd, 5);
 
     while(1) {
         usleep(1000);
 
-        clilen = sizeof(struct sockaddr_in);
+        clilen = sizeof(client_addr);
         comm_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr, &clilen);
-        int flags = fcntl(comm_sockfd, F_GETFL, 0);
-        fcntl(comm_sockfd, F_SETFL, flags|O_NONBLOCK);
-
+        
         if(comm_sockfd < 0) {
-            // printf("No worker client connected, meanwhile add a task 1) Yes 2) No\n");
-            // int choice; scanf("%d", &choice);
-            // if(choice == 1) {
-            //     int op1, op2; char op;
-            //     printf("Enter first operand: ");
-            //     scanf(" %d", &op1);
-            //     printf("Enter operator: ");
-            //     scanf(" %c", &op);
-            //     printf("Enter second operand: ");
-            //     scanf(" %d", &op2);
-
-            //     char temp[50];
-            //     sprintf(temp, "%d %c %d", op1, op, op2);
-
-            //     P(q_sem);
-            //     add_task(temp);
-            //     V(q_sem);
-            // }
+            if(errno != EWOULDBLOCK && errno != EAGAIN) {
+                perror("Accept error");
+                exit(1);
+            }
             continue;
         }
+
+        flags = fcntl(comm_sockfd, F_GETFL, 0);
+        fcntl(comm_sockfd, F_SETFL, flags|O_NONBLOCK);
 
         printf("A client connected\n");
 
@@ -243,13 +272,20 @@ int main() {
 
             while(1) {
                 message msg;
-
                 int temp = 0;
+                
                 while(1) {
                     int num_received = recv(comm_sockfd, &msg, sizeof(message), MSG_WAITALL);
 
                     if(num_received < 0) {
-                        continue;
+                        if(errno == EWOULDBLOCK || errno == EAGAIN) {
+                            usleep(1000);
+                            continue;
+                        } else {
+                            perror("Receive error");
+                            close(comm_sockfd);
+                            exit(1);
+                        }
                     }
                     else if(num_received == 0) {
                         printf("Worker client disconnected\n");
@@ -270,7 +306,6 @@ int main() {
 
                 P(q_sem);
                 if(message_type == 201) {
-                    // printf("--- ready: %d\n", ready_for_new[comm_sockfd]);
                     allocate_task(comm_sockfd);
                 }
                 else {
@@ -281,15 +316,18 @@ int main() {
         }
         else {
             close(comm_sockfd);
+            waitpid(-1, NULL, WNOHANG);
         }
     }
 
-    // computed results
-    computed_result *current = priority_head;
-    while(current != NULL) {
-        printf("Task ID: %d, Computed Value: %d\n", current->task_id, current->computed_value);
-        current = current->next;
+    for(int i=0; i<shared_result_q->count; i++) {
+        printf("Task ID: %d, Computed Value: %d\n", 
+               shared_result_q->results[i].task_id, 
+               shared_result_q->results[i].computed_value);
     }
 
+    shmdt(shm_ptr);
+    shmctl(shmid, IPC_RMID, NULL);
+    
     return 0;
 }
