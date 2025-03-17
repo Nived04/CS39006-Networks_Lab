@@ -8,10 +8,29 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+// message that stores the directive (task completed, process previous task, etc)
+// and a type that is analogous to "status code" to indicate the situation
 typedef struct {
     int type;
     char data[50];
 }message;
+
+message response;
+
+void send_message(int type, char data[], int sockfd) {
+    message msg;
+    msg.type = type;
+    strcpy(msg.data, data);
+    for(int i=strlen(msg.data); i<50; i++) {
+        msg.data[i] = '\0';
+    }
+    
+    int n = send(sockfd, &msg, sizeof(message), 0);
+    if(n < 0) {
+        perror("send error");
+        exit(1);
+    }
+}
 
 int processTask(char task[]) {
     int op1, op2; char op;
@@ -33,12 +52,21 @@ int processTask(char task[]) {
             break;
     }
 
+    response.type = 202;
+    sprintf(response.data, "RESULT %d", result);
+    for(int i=strlen(response.data); i<50; i++) {
+        response.data[i] = '\0';
+    }
+    
     return result;
 }
 
 int main() {
     int client_sockfd;
     struct sockaddr_in server_addr;
+
+    response.type = -1;
+    bzero(response.data, 50);
 
     if((client_sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Unable to create socket\n");
@@ -56,54 +84,77 @@ int main() {
 
     printf("Connected to server\n");
 
+    printf("Press 1 to ask for a new task, 2 to send computed result (if processed), or 0 to finish, when prompted\n");
+    int result;
+
     while(1) {
         int choice;
-        printf("Press 1 to ask for a new task, or 0 to finish: ");
+        printf("Enter Choice: ");
         scanf(" %d", &choice);
+
         if(!choice) break;
 
         message send_msg;
-        send_msg.type = 201;
-        sprintf(send_msg.data, "GET_TASK");
 
-        int n = send(client_sockfd, &send_msg, sizeof(message), 0);
-        if(n < 0) {
-            perror("Error sending request\n");
-            exit(0);
-        }
+        // if sending the result of computed task
+        if(choice == 2) {
+            if(response.type == -1) {
+                printf("Please request a task from the server first\n");
+                continue;
+            }
+            send_msg = response;
+            response.type = -1;
+            bzero(response.data, 50);
 
-        message msg;
-        n = recv(client_sockfd, &msg, sizeof(message), MSG_WAITALL);
-        if(n < 0) {
-            perror("Error receiving task\n");
-            exit(0);
-        }
-
-        printf("Received task_id: %d, %s\n", msg.type, msg.data);
-
-        if(msg.type == 200) {
-            printf("Task received: %s\n", msg.data);
-            int result = processTask(msg.data);
-
-            message response;
-            response.type = 202;
-            sprintf(response.data, "RESULT %d", result);
-
-            n = send(client_sockfd, &response, 50, 0);
+            int n = send(client_sockfd, &send_msg, sizeof(message), 0);
             if(n < 0) {
-                perror("Error sending response\n");
+                perror("Error sending request\n");
                 exit(0);
             }
 
             printf("Result %d sent\n", result);
-        } 
-        else if(msg.type == 404) {
-            printf("All tasks completed\n");
         }
+        // if requesting a new task
         else {
-            printf("Need to process received task first\n");
+            send_message(201, "GET TASK", client_sockfd);
+            
+            message msg;
+            int n = recv(client_sockfd, &msg, sizeof(message), MSG_WAITALL);
+            if(n < 0) {
+                perror("Error receiving task\n");
+                exit(0);
+            }
+    
+            printf("Message Type, Content: %d, %s\n", msg.type, msg.data);
+
+            if(msg.type == 200) {
+                printf("Task received: %s\n", msg.data);
+                result = processTask(msg.data);
+            } 
+            else if(msg.type == 404) {
+                printf("All tasks completed\n");
+                break;
+            }
+            else if(msg.type == 405) {
+                printf("Connection closed by the server, due to inactivity\n");
+                close(client_sockfd);
+                exit(0);
+            }
+            else {
+                printf("Need to process received task first\n");
+            }
         }
     }
+
+    // send a exit message before closing the socket
+    message exit_msg;
+    exit_msg.type = 203;
+    sprintf(exit_msg.data, "EXIT");
+    for(int i=strlen(exit_msg.data); i<50; i++) {
+        exit_msg.data[i] = '\0';
+    }
+
+    send(client_sockfd, &exit_msg, sizeof(message), 0);
 
     close(client_sockfd);
     return 0;
