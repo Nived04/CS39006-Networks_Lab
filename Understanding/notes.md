@@ -39,3 +39,6 @@ we first get the flags and then set the flags.
     Possible reason: server closed before client, and the port is still in use.
     
     Solution: Use SO_REUSEADDR socket option.
+
+# Raw Sockets:
+- Requires root privileges. They bypass the transport layer and directly send packets.
