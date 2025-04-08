@@ -1,3 +1,9 @@
+/*
+Assignment 7 Submission
+Name: Nived Roshan Shah
+Roll No: 22CS10049
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,10 +22,9 @@
 #include <ifaddrs.h>
 #include <errno.h>
 
-#define PROTO_CLDP 253
-#define BUFFER_SIZE 2048
-#define MAX_PAYLOAD_SIZE 512
-#define QUERY_INTERVAL 20
+#define PROTO_CLDP      253
+#define BUFFER_SIZE     2048
+#define QUERY_INTERVAL  20
 
 #define TYPE_HELLO      1
 #define TYPE_QUERY      2
@@ -34,16 +39,21 @@ typedef struct {
 
 typedef struct node_list {
     time_t active_time;
+    int expected_tid;
     char node_ip[50];
     struct node_list* next;
 } node_list;
+
+int tid = 0;
 
 // Add a node to the linked list
 void add_node(char* ip, node_list** head) {
     node_list* current = *head;
     while(current != NULL) {
         if(strcmp(current->node_ip, ip) == 0) {
+            // update active time because fresh "HELLO" was received
             current->active_time = time(NULL);
+            // current->expected_tid = ++tid;
             return;
         }
         current = current->next;
@@ -53,6 +63,7 @@ void add_node(char* ip, node_list** head) {
     
     strcpy(new_node->node_ip, ip);
     new_node->active_time = time(NULL);
+    // new_node->expected_tid = ++tid;
     new_node->next = NULL;
 
     if(*head == NULL) {
@@ -128,7 +139,7 @@ void check_inactive_nodes(node_list** head) {
     }
 }
 
-// Get the local IP address
+// Get the non-loopback IP address of local machine
 in_addr_t get_local_ip() {
     char ip_str[INET_ADDRSTRLEN];
     struct ifaddrs *ifaddr, *ifa;
@@ -169,6 +180,7 @@ unsigned short compute_checksum(unsigned short *buf, int nwords) {
     return (unsigned short)(~sum);
 }
 
+// send query to the destination ip
 void send_query(int sock, char* dest_ip) {
     char buffer[BUFFER_SIZE];
     memset(buffer, 0, BUFFER_SIZE);
@@ -178,7 +190,7 @@ void send_query(int sock, char* dest_ip) {
     
     cldp->type = TYPE_QUERY;
     cldp->payload_length = 0;
-    cldp->transaction_id = rand();
+    cldp->transaction_id = htons(++tid);
     cldp->reserved = 0;
     
     ip->version = 4;
@@ -207,12 +219,30 @@ void send_query(int sock, char* dest_ip) {
     }
 }
 
+// iterate through the list of active server ips and send a query to them
 void query_all_nodes(int sock, node_list* head) {
     node_list* current = head;
     while(current != NULL) {
         send_query(sock, current->node_ip);
+        current->expected_tid = tid;
         current = current->next;
     }
+}
+
+int check_tid(char *ip, int tid, node_list* head) {
+    node_list* current = head;
+    while(current != NULL) {
+        if(strcmp(current->node_ip, ip) == 0) {
+            if(current->expected_tid == tid) {
+                return 1; 
+            } else {
+                printf("Invalid transaction ID from %s: expected %d, got %d\n", ip, current->expected_tid, tid);
+                return 0;
+            }
+        }
+        current = current->next;
+    }
+    return 0;
 }
 
 void print_nodes(node_list* head) {
@@ -225,8 +255,7 @@ void print_nodes(node_list* head) {
     node_list* current = head;
     int count = 0;
     while(current != NULL) {
-        printf("%d. %s (active for %ld seconds)\n", 
-               ++count, current->node_ip, time(NULL) - current->active_time);
+        printf("%d. %s\n", ++count, current->node_ip);
         current = current->next;
     }
     printf("-------------------\n\n");
@@ -291,12 +320,9 @@ int main() {
         }
 
         struct iphdr *ip = (struct iphdr *)buffer;
+
+        // following filter not necessary because socket is defined with PROTO_CLDP protocol
         if(ip->protocol != PROTO_CLDP) {
-            continue;
-        }
-        
-        int min_expected_bytes = ip->ihl*4 + sizeof(cldp_headers);
-        if(n < min_expected_bytes) {
             continue;
         }
 
@@ -312,10 +338,15 @@ int main() {
                 
             case TYPE_RESPONSE:
                 {
-                    char *payload = NULL;
-                    if(cldp->payload_length > 0) {
-                        payload = buffer + ip->ihl*4 + sizeof(cldp_headers);
-                        printf("Received RESPONSE from %s: %.*s\n", src_ip, cldp->payload_length, payload);
+                    if(check_tid(src_ip, ntohs(cldp->transaction_id), head)) {
+                        char *payload = NULL;
+                        if(cldp->payload_length > 0) {
+                            payload = buffer + ip->ihl*4 + sizeof(cldp_headers);
+                            printf("Received RESPONSE from %s:\n%s\n\n", src_ip, payload);
+                        }
+                    }
+                    else {
+                        printf("Transaction not matched, received TID: %d\n\n", ntohs(cldp->transaction_id));
                     }
                 }
                 break;

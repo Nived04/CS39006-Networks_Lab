@@ -1,3 +1,9 @@
+/*
+Assignment 7 Submission
+Name: Nived Roshan Shah
+Roll No: 22CS10049
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +39,7 @@ typedef struct {
 
 char cldp_response_payload[MAX_PAYLOAD_SIZE];
 
+// Compute IP checksum
 unsigned short compute_checksum(unsigned short *buf, int nwords) {
     unsigned long sum = 0;
     for (int i = 0; i < nwords; i++) {
@@ -44,6 +51,7 @@ unsigned short compute_checksum(unsigned short *buf, int nwords) {
     return (unsigned short)(~sum);
 }
 
+// Get the non-loopback IP address of local machine
 in_addr_t get_local_ip() {
     char ip_str[INET_ADDRSTRLEN];
     struct ifaddrs *ifaddr, *ifa;
@@ -72,6 +80,7 @@ in_addr_t get_local_ip() {
     return ip_addr;
 }
 
+// Store the metadata into a global cldp response variable, which will be extracted
 void get_metadata() {
     struct timeval tv;
     struct tm *tm_info;
@@ -89,7 +98,7 @@ void get_metadata() {
     sysinfo(&sys_info);
 
     snprintf(freeram, sizeof(freeram), "%lu MB", sys_info.freeram / (1024 * 1024));
-    snprintf(cpu_load, sizeof(cpu_load), "%.2f%%", (float)sys_info.loads[0] / 65536.0);
+    snprintf(cpu_load, sizeof(cpu_load), "%.2f", (float)sys_info.loads[0] / 65536.0);
 
     snprintf(cldp_response_payload, MAX_PAYLOAD_SIZE, 
             "Time: %s | Host: %s | Free RAM: %s | CPU Load: %s",
@@ -106,20 +115,22 @@ int main() {
         return 1;
     }
 
+    // following option allows to craft IP Headers
     int one = 1;
     if (setsockopt(sock, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0) {
         perror("setsockopt IP_HDRINCL failed");
         exit(1);
     }
 
+    // set option to allow socket to Broadcast
     if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, &one, sizeof(one)) < 0) {
         perror("setsockopt SO_BROADCAST failed");
         exit(1);
     }
  
     pid_t pid = fork();
+    // child process which periodically sends HELLO
     if(!pid) {
-        
         char buffer[BUFFER_SIZE];
         while(1) {
             bzero(buffer, BUFFER_SIZE);
@@ -151,15 +162,17 @@ int main() {
             dest.sin_port = htons(0);
             dest.sin_addr.s_addr = ip->daddr;
 
-            if (sendto(sock, buffer, ntohs(ip->tot_len), 0, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
+            if(sendto(sock, buffer, ntohs(ip->tot_len), 0, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
                 perror("Sendto HELLO failed");
-            } else {
-                printf("Sent HELLO announcement\n");
+            } 
+            else {
+                printf("HELLO announcement broadcasted\n");
             }
 
             sleep(HELLO_PERIOD);
         }
     }
+    // parent process which sends RESPONSE when a QUERY is received
     else {
         char buffer[BUFFER_SIZE];
 
@@ -168,26 +181,28 @@ int main() {
             struct sockaddr_in src_addr;
             socklen_t addr_len = sizeof(src_addr);
             int n = recvfrom(sock, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&src_addr, &addr_len);
-            if (n < 0) {
+            
+            if(n < 0) {
                 perror("recvfrom failed");
                 continue;
             }
 
             struct iphdr *ip = (struct iphdr *)buffer;
+
+            // following filter not necessary because socket is defined with PROTO_CLDP protocol
             if(ip->protocol != PROTO_CLDP) {
                 continue;
             }
-            
-            int min_expected_bytes = ip->ihl*4 + sizeof(cldp_headers);
-            if(n < min_expected_bytes) {
-                continue;
-            }
-
+        
             cldp_headers *cldp = (cldp_headers *)(buffer + ip->ihl*4);
 
             if(cldp->type == TYPE_QUERY) {
+                printf("Received QUERY from %s\n", inet_ntoa(src_addr.sin_addr));
+
                 char response_payload[MAX_PAYLOAD_SIZE];
+                
                 get_metadata();
+                
                 strcpy(response_payload, cldp_response_payload);
                 int payload_len = strlen(response_payload);
 
@@ -210,7 +225,7 @@ int main() {
                 ip_response->ttl = 64;
                 ip_response->protocol = PROTO_CLDP;
                 ip_response->saddr = get_local_ip();
-                ip_response->daddr = ip->saddr;
+                ip_response->daddr = src_addr.sin_addr.s_addr;
                 ip_response->check = compute_checksum((unsigned short *)ip_response, ip_response->ihl * 2);
 
                 struct sockaddr_in dest;
@@ -219,9 +234,10 @@ int main() {
                 dest.sin_port = htons(0);
                 dest.sin_addr.s_addr = ip_response->daddr;
                 
-                if (sendto(sock, buffer, ntohs(ip_response->tot_len), 0, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
+                if(sendto(sock, buffer, ntohs(ip_response->tot_len), 0, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
                     perror("Sendto RESPONSE failed");
-                } else {
+                } 
+                else {
                     printf("Sent RESPONSE to %s\n", inet_ntoa(src_addr.sin_addr));
                 }
             }

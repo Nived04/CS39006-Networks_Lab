@@ -56,8 +56,7 @@ int main() {
             while((temp=send(sockfd, user_input, strlen(user_input) + 1, 0)) < 0) {
                 printf("Client: Error in sending message, trying again...\n");
             }
-            // printf("Test: %d\n", temp); temp is printing correct value of bytes, 
-            // but server is not always receiving 0 bytes for some reason
+            
             printf("Client: Message \"%s\" sent to server\n", user_input);
 
 		}
@@ -71,7 +70,8 @@ int main() {
             }
 
             // struct sockaddr_in peer;
-            // getpeername(sockfd, (struct sockaddr *)&peer, sizeof(peer));
+            // socklen_t len = sizeof(peer);
+            // getpeername(sockfd, (struct sockaddr *)&peer, &len);
 
             // int port = ntohs(peer.sin_port);
             // printf("%d\n", port);
