@@ -2,15 +2,15 @@
 - <sys/socket.h>&emsp;: socket()
 - <netinet/in.h>&nbsp;&emsp;: sockaddr_in
 - <arpa/inet.h>&nbsp;&nbsp;&emsp;: inet_pton(), inet_ntop()
-- <unistd.h>        : close(), fork(), read(), write(), pipe()
-- <strings.h>       : bzero()
-- <sys/types.h>     : ssize_t, pid_t, socklen_t
-- <sys/select.h>    : select()
-- <sys/time.h>      : struct timeval
-- <fcntl.h>         : fcntl()
-- <errno.h>         : errno
-- <netdb.h>         : getaddrinfo(), getnameinfo()
-- <sys/sem.h>       : semop(), semctl(), semget()
+- <unistd.h>&emsp;&emsp;&emsp;: close(), fork(), read(), write(), pipe()
+- <strings.h>&emsp;&emsp;&ensp;&nbsp;: bzero()
+- <sys/types.h> &emsp;&nbsp;: ssize_t, pid_t, socklen_t
+- <sys/select.h>&emsp;&nbsp;: select()
+- <sys/time.h> &emsp;&ensp;&nbsp;: struct timeval
+- <fcntl.h>&emsp;&emsp;&emsp;&ensp;: fcntl()
+- <errno.h>&emsp;&emsp;&emsp;&nbsp;: errno
+- <netdb.h>&emsp;&emsp;&emsp;: getaddrinfo(), getnameinfo()
+- <sys/sem.h>&emsp;&emsp;&nbsp;: semop(), semctl(), semget()
 
 ## Different types of flags:
 
@@ -52,15 +52,15 @@ we first get the flags and then set the flags.
 
     Possible reason: server closed before client, and the port is still in use. 
 
-    Solution: Use SO_REUSEADDR socket option. 
-    `int optval = 1;`
+    Solution: Use SO_REUSEADDR socket option.  
+    `int optval = 1;`  
     `setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));`
 
 # Raw Sockets:
 - Requires root privileges. They bypass the transport layer and directly send packets.
 
-## Function workigns:
-- **inet_ntop(int af, const void* src, char* dst, socklen_t size):**
+## Function workings:
+- **inet_ntop(int af, const void\* src, char\* dst, socklen_t size)**:  
     fill size bytes of dst with the string representation of src (struct in_addr). If size is greater, fills remaining bytes with \0 
 
 ## Some Nooks and Cranies to take care of:
